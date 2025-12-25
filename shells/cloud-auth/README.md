@@ -32,14 +32,22 @@ cloud gcp [name]   # GCP config auth
 cloud azure [name] # Azure subscription auth
 cloud status       # Auth status
 
+# Create new profiles
+cloud add aws <name>   # Create new AWS SSO profile
+cloud add gcp <name>   # Create new GCP configuration
+cloud add azure        # Login and set Azure subscription
+
+# Layer auth (helpers)
 add-aws <profile>  # Layer AWS auth
 add-gcp <config>   # Layer GCP auth
 cloud-refresh      # Re-authenticate all
 
+# Container registries
 ecr-login          # AWS ECR login
 gcr-login          # Google Container Registry
 gar-login          # Google Artifact Registry
 
+# Kubernetes
 kctx               # K8s context switch
 kns                # K8s namespace switch
 ```

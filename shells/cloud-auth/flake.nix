@@ -93,22 +93,96 @@
                   command -v kubectl &>/dev/null && echo -e "\033[0;35mK8s:\033[0m $(kubectl config current-context 2>/dev/null || echo 'none')"
                 }
 
+                add_aws() {
+                  local name="''${1:-}"
+                  [[ -z "$name" ]] && { echo "Usage: cloud add aws <profile-name>"; return 1; }
+
+                  echo -e "\033[0;33m▸ Creating AWS SSO profile: $name\033[0m"
+                  read -rp "SSO Start URL: " sso_url
+                  read -rp "SSO Region [us-east-1]: " sso_region
+                  sso_region="''${sso_region:-us-east-1}"
+                  read -rp "Account ID: " account_id
+                  read -rp "Role Name: " role_name
+                  read -rp "Default Region [us-east-1]: " region
+                  region="''${region:-us-east-1}"
+
+                  mkdir -p "$(dirname "$AWS_CONFIG")"
+                  cat >> "$AWS_CONFIG" <<AWSEOF
+
+        [profile $name]
+        sso_start_url = $sso_url
+        sso_region = $sso_region
+        sso_account_id = $account_id
+        sso_role_name = $role_name
+        region = $region
+        output = json
+        AWSEOF
+
+                  echo -e "\033[0;32m✓ Profile '$name' created\033[0m"
+                  read -rp "Login now? [Y/n]: " login_now
+                  [[ "''${login_now:-y}" =~ ^[Yy]?$ ]] && aws_login "$name"
+                }
+
+                add_gcp() {
+                  local name="''${1:-}"
+                  [[ -z "$name" ]] && { echo "Usage: cloud add gcp <config-name>"; return 1; }
+
+                  echo -e "\033[0;34m▸ Creating GCP configuration: $name\033[0m"
+                  gcloud config configurations create "$name"
+
+                  read -rp "Project ID: " project_id
+                  [[ -n "$project_id" ]] && gcloud config set project "$project_id"
+
+                  read -rp "Default Region: " region
+                  [[ -n "$region" ]] && gcloud config set compute/region "$region"
+
+                  echo -e "\033[0;32m✓ Configuration '$name' created\033[0m"
+                  read -rp "Login now? [Y/n]: " login_now
+                  [[ "''${login_now:-y}" =~ ^[Yy]?$ ]] && gcloud auth login --update-adc
+                }
+
+                add_azure() {
+                  echo -e "\033[0;36m▸ Azure login\033[0m"
+                  az login
+
+                  echo ""
+                  echo "Available subscriptions:"
+                  az account list --output table
+
+                  read -rp "Set default subscription (name or ID): " sub
+                  [[ -n "$sub" ]] && az account set --subscription "$sub"
+                  echo -e "\033[0;32m✓ Default subscription set\033[0m"
+                  az account show --output table
+                }
+
                 case "''${1:-}" in
                   "") fzf_select ;;
                   aws) [[ -z "''${2:-}" ]] && { echo "AWS:"; get_aws | sed 's/^/  /'; } || aws_login "$2" ;;
                   gcp) [[ -z "''${2:-}" ]] && { echo "GCP:"; get_gcp | sed 's/^/  /'; } || gcp_login "$2" ;;
                   azure|az) [[ -z "''${2:-}" ]] && { echo "Azure:"; get_azure | sed 's/^/  /'; } || azure_login "$2" ;;
                   status|s) status ;;
+                  add)
+                    case "''${2:-}" in
+                      aws) add_aws "$3" ;;
+                      gcp) add_gcp "$3" ;;
+                      azure|az) add_azure ;;
+                      *) echo "Usage: cloud add <aws|gcp|azure> [name]" ;;
+                    esac
+                    ;;
                   help|-h|--help)
                     cat <<EOF
         cloud - Cloud authentication tool
 
         Usage:
           cloud              Interactive fzf selector
-          cloud aws [name]   AWS profiles
-          cloud gcp [name]   GCP configs
-          cloud azure [name] Azure subscriptions
+          cloud aws [name]   AWS profiles (list or login)
+          cloud gcp [name]   GCP configs (list or login)
+          cloud azure [name] Azure subscriptions (list or login)
           cloud status       Show auth status
+
+          cloud add aws <name>   Create new AWS SSO profile
+          cloud add gcp <name>   Create new GCP configuration
+          cloud add azure        Login and set Azure subscription
         EOF
                     ;;
                   *) echo "Unknown: $1. Try 'cloud help'"; exit 1 ;;
